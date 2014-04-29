@@ -22,15 +22,16 @@ use Behat\Mink\WebAssert;
  */
 class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
   /**
-     * Environment variable
-     *
-     * @var     string
+    *
+    * @var     string
   */
   public $unit_id;
+  public $booking_id;
   public $unit_price = 200;
   public $unit_type_name = "Test";
   public $unit_name = "test";
   public $unit_max_sleeps = 2;
+  public $order_id;
   /**
   * Initializes context.
   * Every scenario gets its own context object.
@@ -101,7 +102,6 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     try {
         $this->assertAtPath("/admin/rooms/units/unit-types");
         $this->assertSession()->elementContains('xpath','//TABLE[@CLASS="sticky-enabled tableheader-processed sticky-table"]',$name);
-        //$this->assertPageContainsText($name);
     } catch (Exception $rte) {
         $this->addBookableUnit($name,$this->test_price);
     }
@@ -131,7 +131,8 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
   * @Given /^the state of unit "(?P<unit>[^"]*)" is "(?P<state>[^"]*)"$/
   */
   public function checkUnitState($unit, $state) {
-      
+    
+    $this->assertAtPath("/admin/rooms/units");  
     $this->assertClickInTableRow("Edit", $unit);
     $page = $this->getSession()->getCurrentUrl();
     //Taking Unit ID
@@ -321,17 +322,19 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $price = $this->unit_price * $this->daysBetweenDates($start, $end);
     $this->assertAtPath("/admin/rooms");
     $this->iClickOnTheText("Bookings");
-    sleep(5);
+    sleep(4);
     $this->iClickOnTheText("Add a Booking");
     $this->fillField("edit-client", "test_customer");
+    sleep(4);
     $this->fillField("rooms_start_date[date]", $start);
     $this->fillField("rooms_end_date[date]", $end);
     $this->pressButton("edit-get-availability");
-    sleep(8);
+    sleep(4);
     $this->fillField("edit-unit-type", "test");
-    sleep(8);
-    $this->assertSelectRadioById("Test - Cost: $".$price,"edit-unit-id-".$this->unit_id);
-    sleep(8);
+    sleep(4);
+    $this->assertSelectRadioById("Test - Cost: $ ".$price,"edit-unit-id-".$this->unit_id);
+    sleep(4);
+    $this->checkOption("edit-booking-status");
     $this->pressButton("edit-submit");
   }
   /**
@@ -366,6 +369,11 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $this->pressButton("edit-place-booking");
     sleep(3);
     $this->pressButton("edit-checkout");
+
+    $page = $this->getSession()->getCurrentUrl();
+    //Taking Order ID
+    $tmp = explode("/", $page);
+    $this->order_id = $tmp[5];
     $this->fillField("edit-customer-profile-billing-commerce-customer-address-und-0-name-line", "test_customer");
     $this->fillField("edit-customer-profile-billing-commerce-customer-address-und-0-thoroughfare", "Via Roma 123");
     $this->fillField("edit-customer-profile-billing-commerce-customer-address-und-0-postal-code", "123456");
@@ -374,10 +382,47 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $this->pressButton("edit-continue");
     $this->pressButton("edit-continue");
   }
-
-
+  /**
+  * Check Order
+  *
+  * @Given /^I should see the order from "(?P<start>[^"]*)" to "(?P<end>[^"]*)"$/
+  */
+  public function checkOrder($start, $end) {
+    $this->assertAtPath("/admin/commerce/orders");
+    $date_start = explode("/", $start);
+    $date_end = explode("/", $end); 
+    $nights = $this->daysBetweenDates($start,$end);
+    $this->fillField("edit-order-identifier", $this->order_id);
+    $this->pressButton("edit-submit");
+    $this->assertPageContainsText("Booking for ".$this->unit_type_name. " (".$nights." Nights; Arrival: ".$date_start[0]."-".$date_start[1]."-".$date_start[2]." Departure: ".$date_end[0]."-".$date_end[1]."-".$date_end[2].")");
+  }
+  /**
+  * Check DB
+  *
+  * @Then /^Unit Calendar should confirm booking from "(?P<start>[^"]*)" to "(?P<end>[^"]*)"$/
+  */
+  public function checkDatabase($start, $end) {
+    $this->assertAtPath("/admin/rooms/bookings");
+    $this->assertClickInTableRow("Edit", "test_customer");
+    $page = $this->getSession()->getCurrentUrl();
+    printf($page);
+    //Taking Unit ID
+    $tmp = explode("/", $page);
+    $this->booking_id = $tmp[8];
+    $booking_id = rooms_availability_assign_id($this->booking_id, 1);
+    printf($booking_id);
+    $nights = $this->daysBetweenDates($start, $end);
+    $states = array();
+    for ($i = 0; $i < $nights; $i++)
+      $states[$i] = $booking_id;
+    $rc = new UnitCalendar($this->unit_id);//);
+    $start_date = datetime::createfromformat('d/m/Y',$start);
+    $end_date = datetime::createfromformat('d/m/Y',$end);
+    $valid = $rc->stateAvailability($start_date, $end_date, $states);
+    if ( ! $valid ) 
+      throw new Exception('Invalid state');
+  }
+  
 }
-
-
 
 

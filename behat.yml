@@ -10,5 +10,7 @@ default:
     Drupal\DrupalExtension\Extension:
       blackbox: ~
       api_driver: "drupal"
+      drush:
+        alias: 'local'
       drupal:
         drupal_root: "C://xampp/htdocs/drupal"
