@@ -114,6 +114,7 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
   public function checkBookableUnit($name,$type,$state) {
           
     $this->assertAtPath("/admin/rooms/units");
+    
     try {        
        $this->assertSession()->elementContains('xpath','//TABLE[@CLASS="views-table cols-7"]',$type);
     } catch (Exception $rte) {
@@ -132,7 +133,7 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
   */
   public function checkUnitState($unit, $state) {
     
-    $this->assertAtPath("/admin/rooms/units");  
+    $this->assertAtPath("/admin/rooms/units");
     $this->assertClickInTableRow("Edit", $unit);
     $page = $this->getSession()->getCurrentUrl();
     //Taking Unit ID
@@ -227,7 +228,6 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
         $state = "AV";
     if ($state == "2")
         $state = "ON-REQ";
-
     if ($type == "availability")
         $url = "/?q=rooms/units/unit/".$this->unit_id."/availability/json/";
     if ($type == "price")
@@ -320,6 +320,8 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
   */
   public function addBooking($start,$end) {
     $price = $this->unit_price * $this->daysBetweenDates($start, $end);
+    $this->assertAtPath("/admin/rooms/units");
+    $this->unit_id =$this->findElementInATable($this->unit_type_name, 0);
     $this->assertAtPath("/admin/rooms");
     $this->iClickOnTheText("Bookings");
     sleep(4);
@@ -336,6 +338,7 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     sleep(4);
     $this->checkOption("edit-booking-status");
     $this->pressButton("edit-submit");
+    $this->booking_id = $this->findElementInATable("test_customer", 0);
   }
   /**
   * Calculate the number of days between two dates
@@ -361,6 +364,7 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $this->fillField("rooms_start_date[date]", $start);
     $this->fillField("rooms_end_date[date]", $end);
     $this->pressButton("edit-submit");
+    sleep(5);
     $this->assertPageContainsText("Arrival Date ".$start);
     $this->assertPageContainsText("Departure Date ".$end);
     $this->assertPageContainsText("Nights ".($this->daysBetweenDates($start,$end)));
@@ -381,6 +385,9 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $this->fillField("edit-customer-profile-billing-commerce-customer-address-und-0-administrative-area", "RG");
     $this->pressButton("edit-continue");
     $this->pressButton("edit-continue");
+    //taking booking id
+    $this->assertAtPath("/admin/rooms/bookings");
+    $this->booking_id = $this->findElementInATable($this->order_id, 0);
   }
   /**
   * Check Order
@@ -397,20 +404,17 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $this->assertPageContainsText("Booking for ".$this->unit_type_name. " (".$nights." Nights; Arrival: ".$date_start[0]."-".$date_start[1]."-".$date_start[2]." Departure: ".$date_end[0]."-".$date_end[1]."-".$date_end[2].")");
   }
   /**
-  * Check DB
+  * Check DB (I need to check the unit state to have unit_id)
   *
   * @Then /^Unit Calendar should confirm booking from "(?P<start>[^"]*)" to "(?P<end>[^"]*)"$/
   */
   public function checkDatabase($start, $end) {
-    $this->assertAtPath("/admin/rooms/bookings");
-    $this->assertClickInTableRow("Edit", "test_customer");
-    $page = $this->getSession()->getCurrentUrl();
-    printf($page);
-    //Taking Unit ID
-    $tmp = explode("/", $page);
-    $this->booking_id = $tmp[8];
+    //taking unit id.
+    $this->assertAtPath("/admin/rooms/units");
+    $this->unit_id = $this->findElementInATable($this->unit_type_name, 0);
+    printf($this->unit_id); 
     $booking_id = rooms_availability_assign_id($this->booking_id, 1);
-    printf($booking_id);
+    printf("--From : ".$start." to : ".$end. " Booking iD : ". $booking_id . " --");
     $nights = $this->daysBetweenDates($start, $end);
     $states = array();
     for ($i = 0; $i < $nights; $i++)
@@ -422,7 +426,32 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     if ( ! $valid ) 
       throw new Exception('Invalid state');
   }
-  
+  /**
+  * Return an element (given we know the position) from a table in a row where is 
+  * present an ID
+  */
+  public function findElementInATable($id, $position) {
+    $page = $this->getSession()->getPage();
+    $rows = $page->findAll('css', 'tr');
+    $element = "null";
+    foreach ($rows as $row) { 
+      $cells = $row->findAll('css', 'td');
+    //Loop through each child (cell) of the row 
+      $tmp = null;
+      $i = 0;
+      foreach ($cells as $cell) {
+          $tmp[$i] = $cell->getText();
+          $i++;
+      }
+      for ($j = 1; $j < count($tmp); $j++)
+        if ($tmp[$j-1] == $id)
+          $element = $tmp[$position];
+    if ($element != "null")
+      break;
+    }
+    return $element;
+  }
+
 }
 
 
