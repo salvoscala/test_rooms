@@ -114,12 +114,11 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
   public function checkBookableUnit($name,$type,$state) {
           
     $this->assertAtPath("/admin/rooms/units");
-    
     try {        
        $this->assertSession()->elementContains('xpath','//TABLE[@CLASS="views-table cols-7"]',$type);
     } catch (Exception $rte) {
         $this->iClickOnTheText("Add a Bookable Unit");
-        $this->iClickOnTheText("Add ".$type);
+        $this->iClickOnTheText("Add ".$type." unit");
         $this->fillField("edit-name", $name);
         $this->fillField("edit-default-state",$state);
         $this->pressButton("op");
@@ -388,6 +387,7 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     //taking booking id
     $this->assertAtPath("/admin/rooms/bookings");
     $this->booking_id = $this->findElementInATable($this->order_id, 0);
+    printf("Booking ID is : " .$this->booking_id);
   }
   /**
   * Check Order
@@ -412,14 +412,12 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     //taking unit id.
     $this->assertAtPath("/admin/rooms/units");
     $this->unit_id = $this->findElementInATable($this->unit_type_name, 0);
-    printf($this->unit_id); 
     $booking_id = rooms_availability_assign_id($this->booking_id, 1);
-    printf("--From : ".$start." to : ".$end. " Booking iD : ". $booking_id . " --");
     $nights = $this->daysBetweenDates($start, $end);
     $states = array();
     for ($i = 0; $i < $nights; $i++)
       $states[$i] = $booking_id;
-    $rc = new UnitCalendar($this->unit_id);//);
+    $rc = new UnitCalendar($this->unit_id);
     $start_date = datetime::createfromformat('d/m/Y',$start);
     $end_date = datetime::createfromformat('d/m/Y',$end);
     $valid = $rc->stateAvailability($start_date, $end_date, $states);
@@ -434,24 +432,24 @@ class FeatureContext extends Drupal\DrupalExtension\Context\DrupalContext {
     $page = $this->getSession()->getPage();
     $rows = $page->findAll('css', 'tr');
     $element = "null";
-    foreach ($rows as $row) { 
+    foreach ($rows as $row) {
       $cells = $row->findAll('css', 'td');
-    //Loop through each child (cell) of the row 
-      $tmp = null;
+      //Loop through each child (cell) of the row 
+      $tmp[] = null;
       $i = 0;
       foreach ($cells as $cell) {
-          $tmp[$i] = $cell->getText();
-          $i++;
+        $tmp[$i] = $cell->getText();
+        $i++;
       }
-      for ($j = 1; $j < count($tmp); $j++)
-        if ($tmp[$j-1] == $id)
-          $element = $tmp[$position];
+      foreach ($tmp as $value)
+        if ($value == $id) {
+         $element = $tmp[$position];
+        }
     if ($element != "null")
       break;
     }
     return $element;
   }
-
 }
 
 
